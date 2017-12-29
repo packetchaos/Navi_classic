@@ -169,10 +169,10 @@ def scan(cmd):
     option = input("Please enter option #.... ")
     if option == '1':
         template = "731a8e52-3ea6-a291-ec0a-d2ff0619c19d7bd788d6be818b65"
-    elif option =="2":
+    elif option == '2':
         template = "bbd4f805-3966-d464-b2d1-0079eb89d69708c3a05ec2812bcf"
     else:
-        "Using Basic scan since you can't follow directions"
+        print("Using Basic scan since you can't follow directions")
         template = "731a8e52-3ea6-a291-ec0a-d2ff0619c19d7bd788d6be818b65"
 
     print("Here are the available scanners")
