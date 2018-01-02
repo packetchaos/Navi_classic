@@ -1,20 +1,44 @@
 #!/usr/bin/env python3
-#navi v3
+#navi v3.1
 #Created by The ITNinja - Casey Reid
 
 import requests
 import sys
 import time
+import pickle
+import os
 
 requests.packages.urllib3.disable_warnings()
+def save_keys():
+    #check to see if the file exists
+
+    print("Hey you don't have any Keys!")
+    access_key = input("Please provide your Access Key : ")
+    secret_key = input("Please provide your Secret Key : ")
+
+    dicts = {"Access Key": access_key, "Secret Key": secret_key}
+
+    pickle_out = open("keys.pickle", "wb")
+    pickle.dump(dicts, pickle_out)
+    pickle_out.close()
+
+    print("Now you have keys, re-run your command")
+    sys.exit()
+
 
 def grab_headers():
     access_key = ''
     secret_key = ''
-    if access_key == '':
-        print("You are going to need an Access Key and a Secret Key")
+    if os.path.isfile('./keys.pickle') is False:
+        save_keys()
+    else:
+        pickle_in = open("keys.pickle", "rb")
+        keys = pickle.load(pickle_in)
+        access_key = keys["Access Key"]
+        secret_key = keys["Secret Key"]
 
     headers = {'Content-type':'application/json','X-ApiKeys':'accessKey='+access_key+';secretKey='+secret_key}
+
     return headers
 
 def get_data(url_mod):
@@ -395,7 +419,7 @@ def scanners():
         data = get_data('/scanners')
 
         for x in range(len(data["scanners"])):
-            print(str(data["scanners"][x]["name"]) +" : "+ str(data["scanners"][x]["id"]))
+            print(str(data["scanners"][x]["name"]) + " : " + str(data["scanners"][x]["id"]))
     except:
         print("You may not have access...Check permissions")
 
