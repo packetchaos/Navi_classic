@@ -57,17 +57,17 @@ def main(cmd,opt):
                 scan(opt)
             except:
                 print("Invalid input")
+        elif cmd == 'new':
+            save_keys()
         else:
             host_data(cmd,opt)
     except KeyError:
-        print("You forgot your keys, or they are not correct.")
+        print("You forgot your keys, or they are not correct.\n")
+        print("Consider changing your keys using 'new keys' command")
 
 def usage():
-    print()
-    print("Usage: <command(get or scan)> or <Ip address> <option>")
-    print()
+    print("\nUsage: <command(get or scan)> or <Ip address> <option>\n")
     print("<IP address options>")
-
     print("          N - Netstat")
     print("          T - Trace Rt")
     print("          P - Patch")
@@ -78,22 +78,20 @@ def usage():
     print("          s - Services running")
     print("          E - Outbound External Connections")
     print("          R - Local Firewall Rules")
-    print("          <plugin id>")
-    print()
-    print("usage ex: '192.168.128.2 N' ")
-    print()
+    print("          <plugin id>\n")
+    print("usage ex: '192.168.128.2 N' \n")
     print("<'get' options>")
     print("           latest - Details on last scan run")
     print("           nnm - newest host found by nnm")
     print("           scanners - List all of the available scanners")
     print("           users - list all of the users")
-    print("           exclusions - LIst of all of the exclusions")
-    print()
-    print("usage ex: 'get' latest")
-    print()
-    print("<'scan (ip address or subnet)'>")
-    print()
-    print("usage ex: scan 192.168.128.2")
+    print("           exclusions - List of all of the exclusions")
+    print("           containers - List all containers, ids, # of vulns\n")
+    print("usage ex: 'get' latest\n")
+    print("<'scan (ip address or subnet)'>\n")
+    print("usage ex: scan 192.168.128.2\n")
+    print("<'new keys'>")
+    print("           Allows you to enter in new keys")
 
 def latest():
     data = get_data('/scans')
@@ -127,20 +125,15 @@ def latest():
 
     # pull the scan data
     details = get_data('/scans/' + str(grab_uuid))
-    print()
-    print("The last Scan run was at " + epock_latest)
-    print()
-    print("The Scanner name is : " + str(details["info"]["scanner_name"]))
-    print()
-    print("The Name of the scan is "+name)
-    print("The " + str(details["info"]["hostcount"]) + " host(s) that were scanned are below :")
-    print()
+    print("\nThe last Scan run was at " + epock_latest)
+    print("\nThe Scanner name is : " + str(details["info"]["scanner_name"]))
+    print("\nThe Name of the scan is "+name)
+    print("The " + str(details["info"]["hostcount"]) + " host(s) that were scanned are below :\n")
     for x in range(len(details["hosts"])):
         print(details["hosts"][x]["hostname"])
 
     start = time.strftime("%a, %d %b %Y %H:%M:%S ", time.localtime(details["info"]["scan_start"]))
-    print()
-    print("scan start : " + start)
+    print("\nscan start : " + start)
     try:
         stop = time.strftime("%a, %d %b %Y %H:%M:%S ", time.localtime(details["info"]["scan_end"]))
         print("scan finish : " + stop)
@@ -152,8 +145,7 @@ def latest():
     print("Scan Notes Below : ")
     for x in range(len(details["notes"])):
         print("         " + details["notes"][x]["title"])
-        print("         " + details["notes"][x]["message"])
-        print()
+        print("         " + details["notes"][x]["message"]+"\n")
 
 def users():
     data = get_data('/users')
@@ -186,8 +178,7 @@ def nnm():
         print("check permissions to the scanner")
 
 def scan(cmd):
-    print()
-    print("Choose your Scan Template")
+    print("\nChoose your Scan Template")
     print("1.  Basic")
     print("2   Discovery Scan")
     option = input("Please enter option #.... ")
@@ -291,9 +282,9 @@ def connect(id):
     print_data(data)
 
 def outbound(id):
+
     data = get_data('/workbenches/assets/' + id + '/vulnerabilities/16/outputs')
-    print()
-    print("Outbound External Connection")
+    print("\nOutbound External Connection")
     print("----------------")
     for x in range(len(data["outputs"])):
         print(data["outputs"][x]["plugin_output"])
@@ -303,7 +294,8 @@ def outbound(id):
             for z in range(len(data["outputs"][x]["states"][y]["results"])):
                 application = data["outputs"][x]["states"][y]["results"][z]["application_protocol"]
                 print("Port : " + str(data["outputs"][x]["states"][y]["results"][z]["port"])+'/'+str(application))
-    print()
+
+
 
 def unique(id,ip):
     print("IP Addresses:")
@@ -421,7 +413,7 @@ def scanners():
         for x in range(len(data["scanners"])):
             print(str(data["scanners"][x]["name"]) + " : " + str(data["scanners"][x]["id"]))
     except:
-        print("You may not have access...Check permissions")
+        print("You may not have access...Check permissions...or Keys")
 
 def exclude():
     try:
@@ -432,6 +424,15 @@ def exclude():
 
     except:
         print("No Exclusions Set")
+
+def containers():
+    data = get_data('/container-security/api/v1/container/list')
+    print("Container Name : ID : # of Vulns\n")
+    for x in range(len(data)):
+        # print(data[x])
+
+        print(str(data[x]["name"]) + " : " + str(data[x]["id"]) + " : " + str(data[x]["number_of_vulnerabilities"]))
+
 
 def get(opt):
 
@@ -445,6 +446,8 @@ def get(opt):
         users()
     elif opt == 'exclusions':
         exclude()
+    elif opt == 'containers':
+        containers()
     else:
         print("Try Again")
         print("Only Four options")
