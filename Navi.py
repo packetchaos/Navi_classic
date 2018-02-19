@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-#navi v3.1
+#navi v3.2
 #Created by The ITNinja - Casey Reid
+#Disclaimer: This is NOT supported By Tenable! It is also not a secure way of communicating with the API.
+#This is used to show what is possible with the Tenable API
 
 import requests
 import sys
@@ -24,7 +26,6 @@ def save_keys():
 
     print("Now you have keys, re-run your command")
     sys.exit()
-
 
 def grab_headers():
     access_key = ''
@@ -65,6 +66,26 @@ def main(cmd,opt):
         print("You forgot your keys, or they are not correct.\n")
         print("Consider changing your keys using 'new keys' command")
 
+def findplugin(plugin_id):
+    data = get_data('/workbenches/assets/')
+    print("We are looking for the plugin_out put for plugin: "+plugin_id+" on all assets; this may take a minute")
+    for x in range(len(data["assets"])):
+        try:
+            ip = data["assets"][x]["ipv4"][0]
+            id = data["assets"][x]["id"]
+            try:
+                info = get_data('/workbenches/assets/' + str(id) + '/vulnerabilities/' + str(plugin_id)+'/outputs')
+                eval = info["outputs"][0]["plugin_output"]
+                print(ip)
+                print_data(info)
+                print("-------------------------\n")
+            except IndexError:
+                pass
+
+
+        except:
+            pass
+
 def usage():
     print("\nUsage: <command(get or scan)> or <Ip address> <option>\n")
     print("<IP address options>")
@@ -79,15 +100,19 @@ def usage():
     print("          E - Outbound External Connections")
     print("          R - Local Firewall Rules")
     print("          <plugin id>\n")
-    print("usage ex: '192.168.128.2 N' \n")
+    print("usage ex: '192.168.128.2 N' or '192.168.128.2 19506'\n")
     print("<'get' options>")
     print("           latest - Details on last scan run")
     print("           nnm - newest host found by nnm")
     print("           scanners - List all of the available scanners")
     print("           users - list all of the users")
     print("           exclusions - List of all of the exclusions")
-    print("           containers - List all containers, ids, # of vulns\n")
-    print("usage ex: 'get' latest\n")
+    print("           containers - List all containers in Container security, ids, # of vulns")
+    print("           docker - List hosts with running containers; show those containers")
+    print("           webapp - List running web servers")
+    print("           assets - List the IPs found in the last 30 days")
+    print("           creds  - List any hosts that had credential failures")
+    print("usage ex: 'get latest'\n")
     print("<'scan (ip address or subnet)'>\n")
     print("usage ex: scan 192.168.128.2\n")
     print("<'new keys'>")
@@ -147,6 +172,22 @@ def latest():
         print("         " + details["notes"][x]["title"])
         print("         " + details["notes"][x]["message"]+"\n")
 
+def assets():
+    data = get_data('/workbenches/assets/?date_range=30')
+    l = []
+
+    for x in range(len(data["assets"])):
+        for y in range(len(data["assets"][x]["ipv4"])):
+            ip = data["assets"][x]["ipv4"][y]
+            id = data["assets"][x]["id"]
+
+            while ip not in l:
+                l.append(ip)
+    l.sort()
+    print("\nIn the last 30 days, I found " + str(len(l)) + " IP Addresess. See below:\n")
+    for z in range(len(l)):
+        print(l[z])
+
 def users():
     data = get_data('/users')
     for x in range(len(data["users"])):
@@ -159,23 +200,25 @@ def nnm():
 
     nnm_id = 0
     for x in range(len(nnm_data["scans"])):
-        # print(nnm_data["scans"][x]["type"])
+        #print(nnm_data["scans"][x]["type"])
         if (str(nnm_data["scans"][x]["type"]) == 'pvs'):
             nnm_id = nnm_data["scans"][x]["id"]
+
+            try:
+                data = get_data('/scans/' + str(nnm_id) + '/')
+                print("Here are the assets and their scores last found by Nessus Network Monitor")
+                print("   IP Address     : Score")
+                print("----------------")
+
+                for y in range(len(data["hosts"])):
+                    print(str(data["hosts"][y]["hostname"]) + " :  " + str(data["hosts"][y]["score"]))
+
+                print()
+            except:
+                print("No Data found or no Nessus Monitor found")
+                print("check permissions to the scanner")
         else:
             pass
-    try:
-        data = get_data('/scans/' + str(nnm_id) + '/')
-        print("Here are the assets and their scores last found by Nessus Network Monitor")
-        print("   IP Address     : Score")
-        print("----------------")
-
-        for y in range(len(data)):
-            print(str(data["hosts"][y]["hostname"])+ " :  "+ str(data["hosts"][y]["score"]))
-
-    except:
-        print("No Data found or no Nessus Monitor found")
-        print("check permissions to the scanner")
 
 def scan(cmd):
     print("\nChoose your Scan Template")
@@ -216,24 +259,6 @@ def scan(cmd):
     # print Scan UUID
     print("A scan started with UUID: " + data2["scan_uuid"])
 
-def netstat(id):
-    data = get_data('/workbenches/assets/'+id+'/vulnerabilities/58651/outputs')
-    print("Netstat info")
-    print("Established and Listening")
-    print("----------------")
-    print_data(data)
-    print("Netstat Open Ports")
-    print("----------------")
-    data2 = get_data('/workbenches/assets/' + id + '/vulnerabilities/14272/outputs')
-    print_data(data2)
-
-def services(id):
-    data = get_data('/workbenches/assets/'+id+'/vulnerabilities/22964/outputs')
-
-    print("Service(s) Running")
-    print("----------------")
-    print_data(data)
-
 def software(id):
     apps = get_data('/workbenches/assets/' + id + '/vulnerabilities/22869/outputs')
 
@@ -245,41 +270,6 @@ def software(id):
             print(l_apps['outputs'][0]['plugin_output'])
         except:
             print("No Software Found")
-
-def patch(id):
-    data = get_data('/workbenches/assets/'+id+'/vulnerabilities/66334/outputs')
-    print("Patch Information")
-    print("----------------")
-    print_data(data)
-
-def tracert(id):
-    data = get_data('/workbenches/assets/'+id+'/vulnerabilities/10287/outputs')
-    print("Trace Route Info")
-    print("----------------")
-    print_data(data)
-
-def process(id):
-    data = get_data('/workbenches/assets/'+id+'/vulnerabilities/70329/outputs')
-    print("Process Info")
-    print("----------------")
-    print_data(data)
-
-def boot(id):
-    data = get_data('/workbenches/assets/'+id+'/vulnerabilities/56468/outputs')
-    patch_list = get_data('/workbenches/assets/'+id+'/vulnerabilities/38153/outputs')
-    print("Missing Patches")
-    print("----------------")
-
-    print_data(patch_list)
-    print("Last Reboot")
-    print("----------------")
-    print_data(data)
-
-def connect(id):
-    data = get_data('/workbenches/assets/'+id+'/vulnerabilities/64582/outputs')
-    print("Connection info")
-    print("----------------")
-    print_data(data)
 
 def outbound(id):
 
@@ -294,8 +284,6 @@ def outbound(id):
             for z in range(len(data["outputs"][x]["states"][y]["results"])):
                 application = data["outputs"][x]["states"][y]["results"][z]["application_protocol"]
                 print("Port : " + str(data["outputs"][x]["states"][y]["results"][z]["port"])+'/'+str(application))
-
-
 
 def unique(id,ip):
     print("IP Addresses:")
@@ -346,11 +334,21 @@ def unique(id,ip):
 
     print("Last Scan Date "+ str(info['info']['last_authenticated_scan_date']))
 
-def firewall(id):
-    data = get_data('/workbenches/assets/' + id + '/vulnerabilities/56310/outputs')
-    print("Local Firewall Info")
-    print("----------------")
-    print_data(data)
+def plugin_by_ip(cmd,plugin):
+    data = get_data('/workbenches/assets/vulnerabilities')
+
+    for x in range(len(data['assets'])):
+        # Grab the ID and IP address to pull data related to the current asset
+        ip = (data['assets'][x]['ipv4'])
+        id = (data['assets'][x]['id'])
+        if cmd in ip:
+            try:
+                plugin_data = get_data('/workbenches/assets/' + id + '/vulnerabilities/' + plugin + '/outputs')
+                print_data(plugin_data)
+            except:
+                print("No Data")
+        else:
+            pass
 
 def print_data(data):
     try:
@@ -373,33 +371,57 @@ def host_data(cmd,opt):
 
         if cmd in ip:
             if opt == 'N':
-                netstat(id)
+                print("Netstat info")
+                print("Established and Listening")
+                print("----------------")
+                plugin_by_ip(cmd,str(58651))
+                print("Netstat Open Ports")
+                print("----------------")
+                plugin_by_ip(cmd,str(14272))
             elif opt == 'S':
                 print("Searching for Software...")
                 software(id)
             elif opt == 'P':
-                patch(id)
+                print("Patch Information")
+                print("----------------")
+                plugin_by_ip(cmd,str(66334))
             elif opt == 'T':
-                tracert(id)
+                print("Trace Route Info")
+                print("----------------")
+                plugin_by_ip(cmd,str(10287))
             elif opt == 'O':
-                process(id)
+                print("Process Info")
+                print("----------------")
+                plugin_by_ip(cmd,str(70329))
             elif opt == 'B':
-                boot(id)
+                print("Missing Patches")
+                print("----------------")
+                plugin_by_ip(cmd,str(38153))
+                print("Last Reboot")
+                print("----------------")
+                plugin_by_ip(cmd,str(56468))
             elif opt == 'C':
-                connect(id)
+                print("Connection info")
+                print("----------------")
+                plugin_by_ip(cmd,str(64582))
             elif opt == 'U':
                 unique(id,ip)
             elif opt == 's':
-                services(id)
+                print("Service(s) Running")
+                print("----------------")
+                plugin_by_ip(cmd,str(22964))
             elif opt == 'E':
                 outbound(id)
             elif opt =="R":
-                firewall(id)
+
+                print("Local Firewall Info")
+                print("----------------")
+                plugin_by_ip(cmd,str(56310))
 
             else:
                 try:
-                    plugin = get_data('/workbenches/assets/' + id + '/vulnerabilities/' + opt + '/outputs')
-                    print_data(plugin)
+                    plugin_by_ip(cmd,opt)
+
                 except:
                     print("No Data")
                     print("This is the raw data we got back")
@@ -433,7 +455,6 @@ def containers():
 
         print(str(data[x]["name"]) + " : " + str(data[x]["id"]) + " : " + str(data[x]["number_of_vulnerabilities"]))
 
-
 def get(opt):
 
     if opt == 'nnm':
@@ -448,11 +469,27 @@ def get(opt):
         exclude()
     elif opt == 'containers':
         containers()
+    elif opt == 'docker':
+        print("We are looking for RUNNING docker containers...hang tight...This could take a minute or two")
+        findplugin(str(93561))
+    elif opt == 'webapp':
+        print("We are looking for Web Servers running...hang tight...This could take a minute or two")
+        findplugin(str(1442))
+    elif opt =='assets':
+        assets()
+    elif opt =='creds':
+        print("I'm looking for credential issues...Please hang tight")
+        findplugin(str(104410))
     else:
-        print("Try Again")
-        print("Only Four options")
-        print("get latest, get nnm, get scanners or get users")
-
+        try:
+            int(opt)
+            findplugin(opt)
+        except:
+            print("You entered an option that doesn't exist either on purpose or by mistake\n")
+            time.sleep(2)
+            print("Check our Usage information...\nHere let me get that for you...")
+            time.sleep(3)
+            usage()
 
 if __name__ == '__main__':
     try:
