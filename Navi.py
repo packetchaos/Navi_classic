@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-#navi v3.2
+#navi v3.3
+    #added Threading to findplugin function
+    #changed some display messages
 #Created by The ITNinja - Casey Reid
 #Disclaimer: This is NOT supported By Tenable! It is also not a secure way of communicating with the API.
 #This is used to show what is possible with the Tenable API
@@ -9,11 +11,11 @@ import sys
 import time
 import pickle
 import os
+import threading
 
 requests.packages.urllib3.disable_warnings()
 def save_keys():
-    #check to see if the file exists
-
+    #assumption is that the user keys didn't work or don't exsist
     print("Hey you don't have any Keys!")
     access_key = input("Please provide your Access Key : ")
     secret_key = input("Please provide your Secret Key : ")
@@ -30,6 +32,8 @@ def save_keys():
 def grab_headers():
     access_key = ''
     secret_key = ''
+
+    #check for API keys; if none, get them from the user by calling save_keys()
     if os.path.isfile('./keys.pickle') is False:
         save_keys()
     else:
@@ -38,8 +42,8 @@ def grab_headers():
         access_key = keys["Access Key"]
         secret_key = keys["Secret Key"]
 
+    #set the header
     headers = {'Content-type':'application/json','X-ApiKeys':'accessKey='+access_key+';secretKey='+secret_key}
-
     return headers
 
 def get_data(url_mod):
@@ -66,23 +70,32 @@ def main(cmd,opt):
         print("You forgot your keys, or they are not correct.\n")
         print("Consider changing your keys using 'new keys' command")
 
+def thread_fetch(ip,uid,plugin_id):
+    #i'm new to threading, so I broke this code out from the findplugin function to take advantage of threading
+    #I intend to fix this with a more proper solution as I learn.
+    try:
+        info = get_data('/workbenches/assets/' + str(uid) + '/vulnerabilities/' + str(plugin_id) + '/outputs')
+        #Need a better way of causing a failure so we don't print every IP.
+        #raising the eval equality will raise a Index Error if there is no data associated
+        eval = info["outputs"][0]["plugin_output"]
+
+        #print the IP address and send the rest to the print function to be printed
+        print(ip)
+        print_data(info)
+    except IndexError:
+        pass
+
 def findplugin(plugin_id):
     data = get_data('/workbenches/assets/')
-    print("We are looking for the plugin_out put for plugin: "+plugin_id+" on all assets; this may take a minute")
+    print("Searching for the plugin_out put for plugin: "+plugin_id+" on all assets...")
     for x in range(len(data["assets"])):
         try:
             ip = data["assets"][x]["ipv4"][0]
-            id = data["assets"][x]["id"]
-            try:
-                info = get_data('/workbenches/assets/' + str(id) + '/vulnerabilities/' + str(plugin_id)+'/outputs')
-                eval = info["outputs"][0]["plugin_output"]
-                print(ip)
-                print_data(info)
-                print("-------------------------\n")
-            except IndexError:
-                pass
-
-
+            uid = data["assets"][x]["id"]
+            #create a new thread for each asset
+            #Need to come back and put limitations on this
+            t = threading.Thread(target=thread_fetch, args=(ip,uid,plugin_id))
+            t.start()
         except:
             pass
 
@@ -99,6 +112,7 @@ def usage():
     print("          s - Services running")
     print("          E - Outbound External Connections")
     print("          R - Local Firewall Rules")
+    print("          0 - Process information")
     print("          <plugin id>\n")
     print("usage ex: '192.168.128.2 N' or '192.168.128.2 19506'\n")
     print("<'get' options>")
@@ -112,7 +126,8 @@ def usage():
     print("           webapp - List running web servers")
     print("           assets - List the IPs found in the last 30 days")
     print("           creds  - List any hosts that had credential failures")
-    print("usage ex: 'get latest'\n")
+    print("           <plugin_id>\n")
+    print("usage ex: 'get latest' or 'get 19506'\n")
     print("<'scan (ip address or subnet)'>\n")
     print("usage ex: scan 192.168.128.2\n")
     print("<'new keys'>")
@@ -470,10 +485,10 @@ def get(opt):
     elif opt == 'containers':
         containers()
     elif opt == 'docker':
-        print("We are looking for RUNNING docker containers...hang tight...This could take a minute or two")
+        print("Searching for RUNNING docker containers...")
         findplugin(str(93561))
     elif opt == 'webapp':
-        print("We are looking for Web Servers running...hang tight...This could take a minute or two")
+        print("Searching for Web Servers running...")
         findplugin(str(1442))
     elif opt =='assets':
         assets()
