@@ -21,28 +21,28 @@ Each command has two parts: the Command and the Option/Request. There are four c
   * O - Process information
   * plugin-id - Example: 19506
 
-###Examples
+### Examples
 `python3 Navi.py 192.168.128.1 N`
 `python3 Navi.py 192.168.128.1 19506`
 
 ### Get information
-  *latest - Details on last scan run
-  *scans  - Get all of the scans, their IDs and their status
-  *running  - Get all of the scans currently running
-  *nnm - newest host found by nnm
-  *scanners - List all of the available scanners
-  *users - list all of the users
-  *exclusions - List of all of the exclusions
-  *containers - List all containers in Container security, ids, # of vulns
-  *docker - List hosts with running containers; show those containers
-  *webapp - List running web servers
-  *assets - List the IPs found in the last 30 days
-  *creds  - List any hosts that had credential failures
-  *agents - List agents connected to US cloud Scanner
-  *<plugin_id> 
-  *<api-endpoint>
+  * latest - Details on last scan run
+  * scans  - Get all of the scans, their IDs and their status
+  * running  - Get all of the scans currently running
+  * nnm - newest host found by nnm
+  * scanners - List all of the available scanners
+  * users - list all of the users
+  * exclusions - List of all of the exclusions
+  * containers - List all containers in Container security, ids, # of vulns
+  * docker - List hosts with running containers; show those containers
+  * webapp - List running web servers
+  * assets - List the IPs found in the last 30 days
+  * creds  - List any hosts that had credential failures
+  * agents - List agents connected to US cloud Scanner
+  * <plugin_id> 
+  * <api-endpoint>
 
-###Examples
+### Examples
 `python3 Navi.py get latest`
 `python3 Navi.py get 19506`
 `python3 Navi.py get /scans`
