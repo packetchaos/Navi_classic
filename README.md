@@ -50,7 +50,7 @@ Each command has two parts: the Command and the Option/Request. There are four c
 ### Scan <ip address or subnet>
 `python3 Navi.py scan 192.168.128.0/24`
 
-##Use Cases
+## Use Cases
 ### What was last scanned?
 `python3 Navi.py get latest`
 
