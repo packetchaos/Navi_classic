@@ -9,7 +9,9 @@ Each command has two parts: the Command and the Option/Request. There are four c
 
 ### IP address queries
 ..*N - Netstat
+
 ..*T - Trace Rt
+
 ..*P - Patch
 ..*S - Software
 ..*B - Missing MS Patch and last Boot
@@ -21,7 +23,7 @@ Each command has two parts: the Command and the Option/Request. There are four c
 ..*O - Process information
 ..*<plugin id>
 
-####Examples
+###Examples
 `./Navi.py 192.168.128.1 N`
 `./Navi.py 192.168.128.1 19506`
 
