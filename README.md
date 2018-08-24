@@ -19,7 +19,7 @@ Each command has two parts: the Command and the Option/Request. There are four c
   * E - Outbound External Connections
   * R - Local Firewall Rules
   * O - Process information
-  * <plugin id>
+  * plugin-id - Example: 19506
 
 ###Examples
 `./Navi.py 192.168.128.1 N`
