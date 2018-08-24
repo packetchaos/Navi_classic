@@ -8,18 +8,18 @@ In order to get going you need to add your API keys!
 Each command has two parts: the Command and the Option/Request. There are four core commands: get, scan, post and ip address. When inputting a single ip address you can query plugins by supplying the plugin ID or one of the built in options denoted by a letter. 
 
 ### IP address queries
-  *N - Netstat
-  *T - Trace Rt
-  *P - Patch
-  *S - Software
-  *B - Missing MS Patch and last Boot
-  *C - Connection info
-  *U - Unique Asset Info
-  *s - Services running
-  *E - Outbound External Connections
-  *R - Local Firewall Rules
-  *O - Process information
-  *<plugin id>
+  * N - Netstat
+  * T - Trace Rt
+  * P - Patch
+  * S - Software
+  * B - Missing MS Patch and last Boot
+  * C - Connection info
+  * U - Unique Asset Info
+  * s - Services running
+  * E - Outbound External Connections
+  * R - Local Firewall Rules
+  * O - Process information
+  * <plugin id>
 
 ###Examples
 `./Navi.py 192.168.128.1 N`
