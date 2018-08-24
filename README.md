@@ -3,7 +3,7 @@ A Command-line tool which leverages the Tenable.io API to reduce the time it tak
 
 ## Usage
 In order to get going you need to add your API keys!
-`./Navi.py new keys`
+`python3 Navi.py new keys`
 
 Each command has two parts: the Command and the Option/Request. There are four core commands: get, scan, post and ip address. When inputting a single ip address you can query plugins by supplying the plugin ID or one of the built in options denoted by a letter. 
 
@@ -22,8 +22,8 @@ Each command has two parts: the Command and the Option/Request. There are four c
   * plugin-id - Example: 19506
 
 ###Examples
-`./Navi.py 192.168.128.1 N`
-`./Navi.py 192.168.128.1 19506`
+`python3 Navi.py 192.168.128.1 N`
+`python3 Navi.py 192.168.128.1 19506`
 
 ### Get information
   *latest - Details on last scan run
@@ -43,19 +43,19 @@ Each command has two parts: the Command and the Option/Request. There are four c
   *<api-endpoint>
 
 ###Examples
-`./Navi.py get latest`
-`./Navi.py get 19506`
-`./Navi.py get /scans`
+`python3 Navi.py get latest`
+`python3 Navi.py get 19506`
+`python3 Navi.py get /scans`
 
 ### Scan <ip address or subnet>
-`./Navi.py scan 192.168.128.0/24`
+`python3 Navi.py scan 192.168.128.0/24`
 
 ##Use Cases
 ### What was last scanned?
-`./Navi.py get latest`
+`python3 Navi.py get latest`
 
 ### What scans are running right now?
-`./Navi.py get running`
+`python3 Navi.py get running`
 
 ### Find Available scanners
-`./Navi.py get scanners`
+`pyhton3 Navi.py get scanners`
