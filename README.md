@@ -23,6 +23,7 @@ Each command has two parts: the Command and the Option/Request. There are four c
 
 ### Examples
 `python3 Navi.py 192.168.128.1 N`
+
 `python3 Navi.py 192.168.128.1 19506`
 
 ### Get information
@@ -45,7 +46,9 @@ Each command has two parts: the Command and the Option/Request. There are four c
 
 ### Examples
 `python3 Navi.py get latest`
+
 `python3 Navi.py get 19506`
+
 `python3 Navi.py get /scans`
 
 ### Scan ip address or subnet
@@ -69,7 +72,9 @@ Each command has two parts: the Command and the Option/Request. There are four c
 
 ### Control your scans
 `python3 Navi.py pause 13(scan-id)`
+
 `python3 Navi.py resume 13`
+
 `python3 Navi.py stop 13`
 
 ### Find Available scanners
@@ -80,4 +85,5 @@ Each command has two parts: the Command and the Option/Request. There are four c
 
 ### Check an data not programed or query a new api-endpoint
 `python3 Navi.py get /scans`
+
 `python3 Navi.py post /scans/13/launch`
