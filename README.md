@@ -38,6 +38,7 @@ Each command has two parts: the Command and the Option/Request. There are four c
   * webapp - List running web servers
   * assets - List the IPs found in the last 30 days
   * creds  - List any hosts that had credential failures
+  * logs   - List the actor and the action seperated by Date
   * agents - List agents connected to US cloud Scanner
   * plugin-id - Example: 19506
   * API-Endpoint 
