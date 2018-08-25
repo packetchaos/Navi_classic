@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-#navi v3.3
-    #added Threading to findplugin function
-    #changed some display messages
-#Created by The ITNinja - Casey Reid
-#Disclaimer: This is NOT supported By Tenable! It is also not a secure way of communicating with the API.
+#navi v4.1
+
+#Created by Casey Reid
+#Disclaimer: This is NOT supported By Tenable!
+#The API keys are not stored in an encrypted format.
 #This is used to show what is possible with the Tenable API
 
 import requests
@@ -12,8 +12,10 @@ import time
 import pickle
 import os
 import threading
+import pprint
 
 requests.packages.urllib3.disable_warnings()
+
 def save_keys():
     #assumption is that the user keys didn't work or don't exsist
     print("Hey you don't have any Keys!")
@@ -53,10 +55,31 @@ def get_data(url_mod):
     data = r.json()
     return data
 
+def post_data(url_mod):
+
+    url = "https://cloud.tenable.com"
+    headers = grab_headers()
+    r = requests.post(url + url_mod, headers=headers, verify=False)
+
+    return r
+
 def main(cmd,opt):
     try:
         if cmd == 'get':
             get(opt)
+        elif cmd == 'post':
+            new_data = post_data(opt)
+            print('Status Code')
+            print(new_data.status_code)
+            print()
+            print('Status Response/Reason')
+            print(new_data.reason)
+        elif cmd == 'pause':
+            pause(opt)
+        elif cmd == 'resume':
+            resume(opt)
+        elif cmd == 'stop':
+            stop(id)
         elif cmd == 'scan':
             try:
                 scan(opt)
@@ -82,7 +105,7 @@ def thread_fetch(ip,uid,plugin_id):
         #print the IP address and send the rest to the print function to be printed
         print(ip)
         print_data(info)
-    except IndexError:
+    except:
         pass
 
 def findplugin(plugin_id):
@@ -117,6 +140,8 @@ def usage():
     print("usage ex: '192.168.128.2 N' or '192.168.128.2 19506'\n")
     print("<'get' options>")
     print("           latest - Details on last scan run")
+    print("           scans  - Get all of the scans, their IDs and their status")
+    print("           running  - Get all of the scans currently running")
     print("           nnm - newest host found by nnm")
     print("           scanners - List all of the available scanners")
     print("           users - list all of the users")
@@ -126,10 +151,16 @@ def usage():
     print("           webapp - List running web servers")
     print("           assets - List the IPs found in the last 30 days")
     print("           creds  - List any hosts that had credential failures")
+    print("           logs - Print the action and the actor for every log activity recorded")
+    print("           agents - List agents connected to US cloud Scanner")
+    print("           <api-endpoint> example: [ get /scans ]")
     print("           <plugin_id>\n")
     print("usage ex: 'get latest' or 'get 19506'\n")
     print("<'scan (ip address or subnet)'>\n")
     print("usage ex: scan 192.168.128.2\n")
+    print("Control your scans: pause, resume, stop using the scan id\n")
+    print("<'pause (scan ID)'> usage ex: pause 13\n")
+    print("post <api-endpoint> example: post /scans/13/launch ")
     print("<'new keys'>")
     print("           Allows you to enter in new keys")
 
@@ -146,14 +177,14 @@ def latest():
         d = data["scans"][x]["id"]
         #need to identify type to compare against pvs and agent scans
         type = str(data["scans"][x]["type"])
-        name = str(data["scans"][x]["name"])
         #don't capture the PVS or Agent data in latest
         while type not in ['pvs','agent','webapp']:
-            # put scans in a list to find the latests
+            # put scans in a list to find the latest
             l.append(epoch_time)
             # put the time and id into a dictionary
             e[epoch_time] = d
             break
+
     # find the latest time
     grab_time = max(l)
 
@@ -167,7 +198,7 @@ def latest():
     details = get_data('/scans/' + str(grab_uuid))
     print("\nThe last Scan run was at " + epock_latest)
     print("\nThe Scanner name is : " + str(details["info"]["scanner_name"]))
-    print("\nThe Name of the scan is "+name)
+    print("\nThe Name of the scan is " + str(details["info"]["name"]))
     print("The " + str(details["info"]["hostcount"]) + " host(s) that were scanned are below :\n")
     for x in range(len(details["hosts"])):
         print(details["hosts"][x]["hostname"])
@@ -249,6 +280,7 @@ def scan(cmd):
         template = "731a8e52-3ea6-a291-ec0a-d2ff0619c19d7bd788d6be818b65"
 
     print("Here are the available scanners")
+    print("Remember, don't pick a Cloud scanner for an internal IP address")
     scanners()
     scanner_id = input("What scanner do you want to scan with ?.... ")
 
@@ -274,6 +306,58 @@ def scan(cmd):
     # print Scan UUID
     print("A scan started with UUID: " + data2["scan_uuid"])
 
+def pause(id):
+    try:
+        data = post_data('/scans/' + str(id) + '/pause')
+        if data.status_code == 200:
+            print(" Your Scan was Paused")
+        elif data.status_code == 409:
+            print("Wait a few seconds and try again")
+        elif data.status_code == 404:
+            print("yeah, this scan doesn't exist")
+        elif data.status_code == 501:
+            print("There was an error: ")
+            print(data.reason)
+        else:
+            print("It's possible this is already paused")
+    except:
+        print("Ahh now you've done it...")
+        print("double check your id")
+
+def resume(id):
+    try:
+        data = post_data('/scans/' + str(id) + '/resume')
+        if data.status_code == 200:
+            print(" Your Scan Resumed")
+        elif data.status_code == 409:
+            print("Wait a few seconds and try again")
+        elif data.status_code == 404:
+            print("yeah, this scan doesn't exist")
+        else:
+            print("It's possible this is already running")
+
+
+    except:
+        print("Ahh now you've done it...")
+        print("double check your id)
+
+def stop(id):
+    try:
+        data = post_data('/scans/' + str(id) + '/stop')
+        if data.status_code == 200:
+            print(" Your Scan was Stopped")
+        elif data.status_code == 409:
+            print("Wait a few seconds and try again")
+        elif data.status_code == 404:
+            print("yeah, this scan doesn't exist")
+        else:
+            print("It's possible this is already stopped")
+
+
+    except:
+        print("Ahh now you've done it...")
+        print("double check your id")
+
 def software(id):
     apps = get_data('/workbenches/assets/' + id + '/vulnerabilities/22869/outputs')
 
@@ -289,7 +373,7 @@ def software(id):
 def outbound(id):
 
     data = get_data('/workbenches/assets/' + id + '/vulnerabilities/16/outputs')
-    print("\nOutbound External Connection")
+    print("\nOutbound External Connection Found by Nessus Network Monitor")
     print("----------------")
     for x in range(len(data["outputs"])):
         print(data["outputs"][x]["plugin_output"])
@@ -311,8 +395,16 @@ def unique(id,ip):
     print("--------------")
     print(id + '\n')
     info = get_data('/workbenches/assets/' + id + '/info')
+    #pprint.pprint(info)
+    print("\nCurrent Severity Counts")
+    print("--------------")
+    for s in range(len(info['info']['counts']['vulnerabilities']['severities'])):
+        severity = info['info']['counts']['vulnerabilities']['severities'][s]['name']
+        count = info['info']['counts']['vulnerabilities']['severities'][s]['count']
 
-    print("FQDN")
+        print(severity + " " + str(count))
+
+    print("\nFQDN")
     print("--------------")
     # FQDN may be blank, so inform the user if that is the case;
     try:
@@ -370,10 +462,9 @@ def print_data(data):
         #there may be multiple outputs
         for x in range(len(data['outputs'])):
             print(data['outputs'][x]['plugin_output'])
-            print('\n')
+            print()
     except:
-        print("No Data found")
-        print('\n')
+        print("No Data found\n")
 
 def host_data(cmd,opt):
 
@@ -452,6 +543,43 @@ def scanners():
     except:
         print("You may not have access...Check permissions...or Keys")
 
+def running():
+    try:
+        data = get_data('/scans')
+
+        for scans in range(len(data['scans'])):
+            # pprint.pprint(N['scans'][scans])
+            if data['scans'][scans]['status'] == "running":
+
+                name = data['scans'][scans]['name']
+                scan_id = data['scans'][scans]['id']
+                status = data['scans'][scans]['status']
+
+                print("Scan Name : " + name)
+                print("Scan ID : " + str(scan_id))
+                print("Current status : " + status)
+
+
+    except:
+        print("You may not have access...Check permissions...or Keys")
+
+def list_scans():
+    try:
+        data = get_data('/scans')
+
+        for x in range(len(data['scans'])):
+
+            name = data['scans'][x]['name']
+            scan_id = data['scans'][x]['id']
+            status = data['scans'][x]['status']
+
+            print("Scan Name : " + name)
+            print("Scan ID : " + str(scan_id))
+            print("Current status : " + status)
+            print("-----------------")
+    except:
+        print("You may not have access...Check permissions...or Keys")
+
 def exclude():
     try:
         data = get_data('/exclusions')
@@ -463,19 +591,73 @@ def exclude():
         print("No Exclusions Set")
 
 def containers():
-    data = get_data('/container-security/api/v1/container/list')
-    print("Container Name : ID : # of Vulns\n")
-    for x in range(len(data)):
-        # print(data[x])
+    try:
+        data = get_data('/container-security/api/v1/container/list')
+        print("Container Name : ID : # of Vulns\n")
+        for x in range(len(data)):
+            # print(data[x])
 
-        print(str(data[x]["name"]) + " : " + str(data[x]["id"]) + " : " + str(data[x]["number_of_vulnerabilities"]))
+            print(str(data[x]["name"]) + " : " + str(data[x]["id"]) + " : " + str(data[x]["number_of_vulnerabilities"]))
+    except:
+        print("No containers found")
+
+def logs():
+    data = get_data('/audit-log/v1/events')
+    #pprint.pprint(data['events'])
+    for log in range(len(data['events'])):
+        received = data['events'][log]['received']
+        action = data['events'][log]['action']
+        actor = data['events'][log]['actor']['name']
+
+        print("Date : " + received)
+        print("-------------------")
+        print(action)
+        print(actor)
+        print()
+
+def agents():
+    data = get_data('/scanners')
+
+    # get US cloud Scanner ID
+    for scanner in range(len(data['scanners'])):
+        if data['scanners'][scanner]['name'] == 'US Cloud Scanner':
+            scan_id = data['scanners'][scanner]['id']
+
+            #pull agent data from the US cloud Scanner
+            agents = get_data('/scanners/' + str(scan_id) + '/agents')
+
+            #cycle through the agents and display the useful information
+            for a in range(len(agents['agents'])):
+                print('\n------Agent Info-------\n')
+                print(agents['agents'][a]['name'])
+                print(agents['agents'][a]['ip'])
+                print(agents['agents'][a]['platform'])
+                print("\nLast time it connected")
+                last_connect = agents['agents'][a]['last_connect']
+                connect_time = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(last_connect))
+                print(connect_time)
+                print("\nLast time it was scanned")
+                last_scanned = agents['agents'][a]['last_scanned']
+                scanned_time = time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(last_scanned))
+                print(scanned_time)
+                print("\nStatus")
+                print(agents['agents'][a]['status'])
+                print('\n-----End Info-----------\n')
 
 def get(opt):
 
     if opt == 'nnm':
         nnm()
+    elif opt == 'logs':
+        logs()
+    elif opt == 'running':
+        running()
+    elif opt == 'scans':
+        list_scans()
     elif opt == 'latest':
         latest()
+    elif opt == 'agents':
+        agents()
     elif opt == 'scanners':
         scanners()
     elif opt == 'users':
@@ -497,8 +679,17 @@ def get(opt):
         findplugin(str(104410))
     else:
         try:
-            int(opt)
-            findplugin(opt)
+                int(opt)
+                findplugin(opt)
+
+        except ValueError:
+            try:
+                data = get_data(opt)
+                pprint.pprint(data)
+            except:
+                print("The API endpoint you tried threw an error")
+                print("Or the command you tried didn't work")
+
         except:
             print("You entered an option that doesn't exist either on purpose or by mistake\n")
             time.sleep(2)
