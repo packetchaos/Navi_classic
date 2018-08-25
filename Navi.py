@@ -17,7 +17,7 @@ import pprint
 requests.packages.urllib3.disable_warnings()
 
 def save_keys():
-    #assumption is that the user keys didn't work or don't exsist
+    #assumption is that the user keys didn't work or don't exist
     print("Hey you don't have any Keys!")
     access_key = input("Please provide your Access Key : ")
     secret_key = input("Please provide your Secret Key : ")
@@ -49,6 +49,11 @@ def grab_headers():
     return headers
 
 def get_data(url_mod):
+    '''
+
+    :param url_mod: The URL endpoint. Ex: /scans
+    :return: Response from API in json format
+    '''
     url = "https://cloud.tenable.com"
     headers = grab_headers()
     r = requests.request('GET', url + url_mod, headers=headers, verify=False)
@@ -56,7 +61,11 @@ def get_data(url_mod):
     return data
 
 def post_data(url_mod):
+    '''
 
+    :param url_mod: The URL endpoint. Ex: /scans/<scan-id>/launch
+    :return: Response from the API
+    '''
     url = "https://cloud.tenable.com"
     headers = grab_headers()
     r = requests.post(url + url_mod, headers=headers, verify=False)
@@ -339,7 +348,7 @@ def resume(id):
 
     except:
         print("Ahh now you've done it...")
-        print("double check your id)
+        print("double check your id")
 
 def stop(id):
     try:
