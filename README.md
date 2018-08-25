@@ -39,15 +39,15 @@ Each command has two parts: the Command and the Option/Request. There are four c
   * assets - List the IPs found in the last 30 days
   * creds  - List any hosts that had credential failures
   * agents - List agents connected to US cloud Scanner
-  * <plugin_id> 
-  * <api-endpoint>
+  * plugin-id - Example: 19506
+  * API-Endpoint 
 
 ### Examples
 `python3 Navi.py get latest`
 `python3 Navi.py get 19506`
 `python3 Navi.py get /scans`
 
-### Scan <ip address or subnet>
+### Scan ip address or subnet
 `python3 Navi.py scan 192.168.128.0/24`
 
 ## Use Cases
@@ -57,5 +57,26 @@ Each command has two parts: the Command and the Option/Request. There are four c
 ### What scans are running right now?
 `python3 Navi.py get running`
 
+### Find a Scan
+`python3 Navi.py get scans | grep Navi`
+
+### Create a Scan
+`python3 Navi.py scan 192.168.128.0/24`
+  * Choose your scan type: Basic or Discovery
+  * Pick your scanner by ID: scanners will be displayed
+  * Scan will immediately kick off
+
+### Control your scans
+`python3 Navi.py pause 13(scan-id)`
+`python3 Navi.py resume 13`
+`python3 Navi.py stop 13`
+
 ### Find Available scanners
 `pyhton3 Navi.py get scanners`
+
+### Find Non-Cloud scanners
+`python3 Navi.py get scanners | grep -e -v Cloud`
+
+### Check an data not programed or query a new api-endpoint
+`python3 Navi.py get /scans`
+`python3 Navi.py post /scans/13/launch`
