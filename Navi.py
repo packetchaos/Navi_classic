@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#navi v4.1
+#navi v4.2
 
 #Created by Casey Reid
 #Disclaimer: This is NOT supported By Tenable!
@@ -94,6 +94,16 @@ def main(cmd,opt):
                 scan(opt)
             except:
                 print("Invalid input")
+        elif cmd == 'report':
+            try:
+                report(opt)
+            except:
+                print("Invalid Input")
+        elif cmd == 'exploit':
+            try:
+                exploit(opt)
+            except:
+                print("Invalid Input")
         elif cmd == 'new':
             save_keys()
         else:
@@ -165,6 +175,8 @@ def usage():
     print("           <api-endpoint> example: [ get /scans ]")
     print("           <plugin_id>\n")
     print("usage ex: 'get latest' or 'get 19506'\n")
+    print(" report <ip address> - Get the Critical Vulns and the solutions\n")
+    print(" exploit <ip address> - Get the Exploitable vulns, Description, Solution and CVE ID\n")
     print("<'scan (ip address or subnet)'>\n")
     print("usage ex: scan 192.168.128.2\n")
     print("Control your scans: pause, resume, stop using the scan id\n")
@@ -314,6 +326,84 @@ def scan(cmd):
 
     # print Scan UUID
     print("A scan started with UUID: " + data2["scan_uuid"])
+
+def report(opt):
+    N = get_data("/workbenches/assets/vulnerabilities")
+
+    for asset in range(len(N["assets"])):
+
+        for ips in range(len(N["assets"][asset]["ipv4"])):
+            ip = N["assets"][asset]["ipv4"][ips]
+
+            if opt == ip:
+
+                print("Critical Vulns for Ip Address :" + opt)
+                print()
+                id = N["assets"][asset]["id"]
+                vulns = get_data("/workbenches/assets/" + id + "/vulnerabilities?date_range=90")
+                #pprint.pprint(vulns["vulnerabilities"])
+                for severities in range(len(vulns["vulnerabilities"])):
+                    vuln_name = vulns["vulnerabilities"][severities]["plugin_name"]
+                    id = vulns["vulnerabilities"][severities]["plugin_id"]
+                    severity = vulns["vulnerabilities"][severities]["severity"]
+                    state = vulns["vulnerabilities"][severities]["vulnerability_state"]
+
+                    #only pull the critical vulns; critical = severity 4
+                    if severity >= 4:
+                        print("Plugin Name : " + vuln_name)
+                        print("ID : " + str(id))
+                        print("Severity : " + str(severity))
+                        print("State : " + state)
+                        print("----------------\n")
+                        plugin_by_ip(str(opt), str(id))
+
+
+
+            else:
+                pass
+
+def exploit(opt):
+
+
+    N = get_data(
+        '/workbenches/assets/vulnerabilities?filter.0.quality=eq&filter.0.filter=plugin.attributes.exploit_available&filter.0.value=True')
+    for assets in range(len(N['assets'])):
+        asset_id = N['assets'][assets]['id']
+
+        for ips in N['assets'][assets]['ipv4']:
+            ip_addy = N['assets'][assets]['ipv4'][0]
+            if ip_addy == opt:
+                print("Exploitable Details for : " + ip_addy)
+                print()
+                V = get_data('/workbenches/assets/' + asset_id + '/vulnerabilities?filter.0.quality=eq&filter.0.filter=plugin.attributes.exploit_available&filter.0.value=True')
+                for plugins in range(len(V['vulnerabilities'])):
+                    plugin = V['vulnerabilities'][plugins]['plugin_id']
+                    # pprint.pprint(plugin)
+
+                    P = get_data('/plugins/plugin/' + str(plugin))
+                    # pprint.pprint(P['attributes'])
+                    print("\n----Exploit Info----")
+                    print(P['name'])
+                    print()
+                    for attribute in range(len(P['attributes'])):
+
+                        if P['attributes'][attribute]['attribute_name'] == 'cve':
+                            cve = P['attributes'][attribute]['attribute_value']
+                            print("CVE ID : " + cve)
+
+                        if P['attributes'][attribute]['attribute_name'] == 'description':
+                            description = P['attributes'][attribute]['attribute_value']
+                            print("Description")
+                            print("------------\n")
+                            print(description)
+                            print()
+
+                        if P['attributes'][attribute]['attribute_name'] == 'solution':
+                            solution = P['attributes'][attribute]['attribute_value']
+                            print("\nSolution")
+                            print("------------\n")
+                            print(solution)
+                            print()
 
 def pause(id):
     try:

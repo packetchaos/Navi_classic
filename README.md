@@ -51,6 +51,12 @@ Each command has two parts: the Command and the Option/Request. There are four c
 
 `python3 Navi.py get /scans`
 
+### Reports - Critical Vulns or Exploitable Vulns
+####Doesn't accept ranges
+`python3 Navi.py report 192.168.128.200`
+
+`python3 Navi.py exploit 192.168.128.200`
+
 ### Scan ip address or subnet
 `python3 Navi.py scan 192.168.128.0/24`
 
