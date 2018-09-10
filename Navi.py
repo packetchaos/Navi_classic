@@ -242,11 +242,9 @@ def latest():
 def assets():
     data = get_data('/workbenches/assets/?date_range=30')
     l = []
-
     for x in range(len(data["assets"])):
         for y in range(len(data["assets"][x]["ipv4"])):
             ip = data["assets"][x]["ipv4"][y]
-            id = data["assets"][x]["id"]
 
             while ip not in l:
                 l.append(ip)
