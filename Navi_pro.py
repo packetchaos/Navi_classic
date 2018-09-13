@@ -4,6 +4,9 @@ import requests
 import pprint
 import time
 import threading
+import os
+import pickle
+import sys
 
 requests.packages.urllib3.disable_warnings()
 
@@ -11,19 +14,35 @@ requests.packages.urllib3.disable_warnings()
 def cli():
     click.echo("Hey Listen!")
 
+@cli.command()
+def keys():
+    #assumption is that the user keys didn't work or don't exist
+    print("Hey you don't have any Keys!")
+    access_key = input("Please provide your Access Key : ")
+    secret_key = input("Please provide your Secret Key : ")
+
+    dicts = {"Access Key": access_key, "Secret Key": secret_key}
+
+    pickle_out = open("keys.pickle", "wb")
+    pickle.dump(dicts, pickle_out)
+    pickle_out.close()
+
+    print("Now you have keys, re-run your command")
+    sys.exit()
+
 def grab_headers():
     access_key = ''
     secret_key = ''
-    '''
+
     #check for API keys; if none, get them from the user by calling save_keys()
     if os.path.isfile('./keys.pickle') is False:
-        save_keys()
+        keys()
     else:
         pickle_in = open("keys.pickle", "rb")
-        keys = pickle.load(pickle_in)
-        access_key = keys["Access Key"]
-        secret_key = keys["Secret Key"]
-    '''
+        actual_keys = pickle.load(pickle_in)
+        access_key = actual_keys["Access Key"]
+        secret_key = actual_keys["Secret Key"]
+
     #set the header
     headers = {'Content-type':'application/json','X-ApiKeys':'accessKey='+access_key+';secretKey='+secret_key}
     return headers
@@ -56,6 +75,18 @@ def get_data(url_mod):
         print("Check your connection...You got a connection error")
     #Trying to catch API errors
 
+def post_data(url_mod):
+    '''
+
+    :param url_mod: The URL endpoint. Ex: /scans/<scan-id>/launch
+    :return: Response from the API
+    '''
+    url = "https://cloud.tenable.com"
+    headers = grab_headers()
+    r = requests.post(url + url_mod, headers=headers, verify=False)
+
+    return r
+
 def plugin_by_ip(cmd,plugin):
     data = get_data('/workbenches/assets/vulnerabilities')
 
@@ -71,6 +102,20 @@ def plugin_by_ip(cmd,plugin):
             except:
                 print("No Data")
         else:
+            pass
+
+def find_by_plugin(plugin):
+    data = get_data('/workbenches/assets/')
+    print("Searching for the plugin_out put for plugin: " + plugin + " on all assets...")
+    for x in range(len(data["assets"])):
+        try:
+            ip = data["assets"][x]["ipv4"][0]
+            uid = data["assets"][x]["id"]
+            # create a new thread for each asset
+            # Need to come back and put limitations on this
+            t = threading.Thread(target=thread_fetch, args=(ip, uid, plugin))
+            t.start()
+        except:
             pass
 
 def print_data(data):
@@ -354,26 +399,34 @@ def ip(ipaddr, plugin, n, p, t, o, c, s, r, b, d, software, outbound, exploit, c
 
                 print("Last Scan Date " + str(info['info']['last_authenticated_scan_date']))
 
+@cli.command()
+@click.option('--plugin', default='', help='Plugin ID')
+@click.option('-docker', is_flag=True, help="Find Running Docker Containers")
+@click.option('-webapp', is_flag=True, help="Find Web Servers running")
+@click.option('-creds', is_flag=True, help="Find Credential failures")
+def find(plugin, docker, webapp, creds):
+
+    if plugin != '':
+
+        if str.isdigit(plugin) != True:
+            print("You didn't enter a number")
+        else:
+            find_by_plugin(plugin)
+
+    if docker:
+        print("Searching for RUNNING docker containers...")
+        find_by_plugin(str(93561))
+
+    if webapp:
+        print("Searching for Web Servers running...")
+        find_by_plugin(str(1442))
+
+    if creds:
+        print("I'm looking for credential issues...Please hang tight")
+        find_by_plugin(str(104410))
 
 @cli.command()
-@click.argument('plugin')
-def find(plugin):
-    #need to put a test to ensure a number is given
-    data = get_data('/workbenches/assets/')
-    print("Searching for the plugin_out put for plugin: " + plugin + " on all assets...")
-    for x in range(len(data["assets"])):
-        try:
-            ip = data["assets"][x]["ipv4"][0]
-            uid = data["assets"][x]["id"]
-            # create a new thread for each asset
-            # Need to come back and put limitations on this
-            t = threading.Thread(target=thread_fetch, args=(ip, uid, plugin))
-            t.start()
-        except:
-            pass
-
-@cli.command()
-@click.option('--latest', is_flag=True, help="Report the Last Scan Details")
+@click.option('-latest', is_flag=True, help="Report the Last Scan Details")
 def report(latest):
     #get the latest Scan Details
     if latest:
@@ -616,6 +669,84 @@ def scan(targets):
 
     # print Scan UUID
     print("A scan started with UUID: " + data2["scan_uuid"])
+    print("The scan ID is " + str(scan))
+
+@cli.command()
+@click.argument('Scan_id')
+def pause(scan_id):
+    try:
+        data = post_data('/scans/' + str(scan_id) + '/pause')
+        if data.status_code == 200:
+            print(" Your Scan was Paused")
+        elif data.status_code == 409:
+            print("Wait a few seconds and try again")
+        elif data.status_code == 404:
+            print("yeah, this scan doesn't exist")
+        elif data.status_code == 501:
+            print("There was an error: ")
+            print(data.reason)
+        else:
+            print("It's possible this is already paused")
+    except:
+        print("Ahh now you've done it...")
+        print("double check your id")
+
+@cli.command()
+@click.argument('scan_id')
+def resume(scan_id):
+    try:
+        data = post_data('/scans/' + str(scan_id) + '/resume')
+        if data.status_code == 200:
+            print(" Your Scan Resumed")
+        elif data.status_code == 409:
+            print("Wait a few seconds and try again")
+        elif data.status_code == 404:
+            print("yeah, this scan doesn't exist")
+        else:
+            print("It's possible this is already running")
+
+
+    except:
+        print("Ahh now you've done it...")
+        print("double check your id")
+
+@cli.command()
+@click.argument('scan_id')
+def stop(scan_id):
+    try:
+        data = post_data('/scans/' + str(scan_id) + '/stop')
+        if data.status_code == 200:
+            print(" Your Scan was Stopped")
+        elif data.status_code == 409:
+            print("Wait a few seconds and try again")
+        elif data.status_code == 404:
+            print("yeah, this scan doesn't exist")
+        else:
+            print("It's possible this is already stopped")
+
+
+    except:
+        print("Ahh now you've done it...")
+        print("double check your id")
+
+@cli.command()
+@click.argument('scan_id')
+def start(scan_id):
+    try:
+        data = post_data('/scans/' + str(scan_id) + '/launch')
+        if data.status_code == 200:
+            print(" Your Scan was Started")
+        elif data.status_code == 409:
+            print("Wait a few seconds and try again")
+        elif data.status_code == 404:
+            print("yeah, this scan doesn't exist")
+        else:
+            print("It's possible this is already started")
+
+
+    except:
+        print("Ahh now you've done it...")
+        print("double check your id")
 
 if __name__ == '__main__':
     cli()
