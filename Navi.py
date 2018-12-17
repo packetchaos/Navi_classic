@@ -112,21 +112,6 @@ def main(cmd,opt):
         print("You forgot your keys, or they are not correct.\n")
         print("Consider changing your keys using 'new keys' command")
 
-def thread_fetch(ip,uid,plugin_id):
-    #i'm new to threading, so I broke this code out from the findplugin function to take advantage of threading
-    #I intend to fix this with a more proper solution as I learn.
-    try:
-        info = get_data('/workbenches/assets/' + str(uid) + '/vulnerabilities/' + str(plugin_id) + '/outputs')
-        #Need a better way of causing a failure so we don't print every IP.
-        #raising the eval equality will raise a Index Error if there is no data associated
-        eval = info["outputs"][0]["plugin_output"]
-
-        #print the IP address and send the rest to the print function to be printed
-        print(ip)
-        print_data(info)
-    except:
-        pass
-
 def findplugin(plugin_id):
     data = get_data('/workbenches/assets/')
     print("Searching for the plugin_out put for plugin: "+plugin_id+" on all assets...")
@@ -134,10 +119,13 @@ def findplugin(plugin_id):
         try:
             ip = data["assets"][x]["ipv4"][0]
             uid = data["assets"][x]["id"]
-            #create a new thread for each asset
-            #Need to come back and put limitations on this
-            t = threading.Thread(target=thread_fetch, args=(ip,uid,plugin_id))
-            t.start()
+
+            #removed from Threading due to API constraints
+            info = get_data('/workbenches/assets/' + str(uid) + '/vulnerabilities/' + str(plugin_id) + '/outputs')
+            eval = info["outputs"][0]["plugin_output"]
+            print(ip)
+            print_data(info)
+
         except:
             pass
 
@@ -550,7 +538,7 @@ def plugin_by_ip(cmd,plugin):
                 plugin_data = get_data('/workbenches/assets/' + id + '/vulnerabilities/' + plugin + '/outputs')
                 print_data(plugin_data)
             except:
-                print("No Data")
+                print("No data")
         else:
             pass
 
@@ -559,7 +547,6 @@ def print_data(data):
         #there may be multiple outputs
         for x in range(len(data['outputs'])):
             print(data['outputs'][x]['plugin_output'])
-            print()
     except:
         print("No Data found\n")
 
@@ -625,7 +612,7 @@ def host_data(cmd,opt):
                 try:
                     plugin_by_ip(cmd,opt)
 
-                except:
+                except(TypeError):
                     print("No Data")
                     print("This is the raw data we got back")
                     print(data)
