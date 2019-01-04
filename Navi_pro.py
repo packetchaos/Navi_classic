@@ -3,18 +3,20 @@ import click
 import requests
 import pprint
 import time
-import threading
 import os
 import pickle
 import sys
+import json
 
 requests.packages.urllib3.disable_warnings()
 
 @click.group()
 def cli():
     click.echo("Hey Listen!")
+    compare()
 
-@cli.command()
+
+@cli.command(help="Enter or Reset your Keys")
 def keys():
     #assumption is that the user keys didn't work or don't exist
     print("Hey you don't have any Keys!")
@@ -29,6 +31,7 @@ def keys():
 
     print("Now you have keys, re-run your command")
     sys.exit()
+
 
 def grab_headers():
     access_key = ''
@@ -46,6 +49,7 @@ def grab_headers():
     #set the header
     headers = {'Content-type':'application/json','X-ApiKeys':'accessKey='+access_key+';secretKey='+secret_key}
     return headers
+
 
 def get_data(url_mod):
     '''
@@ -75,7 +79,8 @@ def get_data(url_mod):
         print("Check your connection...You got a connection error")
     #Trying to catch API errors
 
-def post_data(url_mod):
+
+def quick_post(url_mod):
     '''
 
     :param url_mod: The URL endpoint. Ex: /scans/<scan-id>/launch
@@ -87,36 +92,185 @@ def post_data(url_mod):
 
     return r
 
-def plugin_by_ip(cmd,plugin):
-    data = get_data('/workbenches/assets/vulnerabilities')
 
-    for x in range(len(data['assets'])):
-        # Grab the ID and IP address to pull data related to the current asset
-        ip = (data['assets'][x]['ipv4'])
-        id = (data['assets'][x]['id'])
-        if cmd in ip:
-            try:
-                plugin_data = get_data('/workbenches/assets/' + id + '/vulnerabilities/' + plugin + '/outputs')
-                #Send data to be printed to the screen
-                print_data(plugin_data)
-            except:
-                print("No Data")
-        else:
+def post_data(url_mod,payload):
+    #Set the URL endpoint
+    url = "https://cloud.tenable.com"
+
+    #grab headers for auth
+    headers = grab_headers()
+
+    #send Post request to API endpoint
+    r = requests.post(url + url_mod, json=payload, headers=headers, verify=False)
+    #retreive data in json format
+    data = r.json()
+
+    return data
+
+
+def compare():
+    #need to add platform specific checks
+    try:
+        stat = os.stat('tio_vuln_data.txt')
+        current = time.time()
+        time_delta = current - stat[9]
+        if time_delta < 86400:
+            #print("Data is fresh, using local Cache")
             pass
+        else:
+            print("It's been : ", time_delta, " seconds since the last pull")
+            print('pulling new data')
+            vuln_export()
+            asset_export()
+    except:
+        print("Data is Stale or not present.  Pulling new Vuln and Asset data to local cache")
+        vuln_export()
+        asset_export()
+
+
+    return
+
+
+def vuln_export():
+    # Set the payload to the maximum number of assets to be pulled at once
+    thirty_days = time.time() - 2660000
+    pay_load = {"num_assets": 5000, "Filters": {"last_found": thirty_days}}
+
+    # request an export of the data
+    export = post_data("/vulns/export", pay_load)
+
+    # grab the export UUID
+    ex_uuid = export['export_uuid']
+    print('Requesting Export with ID : ' + ex_uuid)
+
+    # now check the status
+    status = get_data('/vulns/export/' + ex_uuid + '/status')
+
+    # status = get_data('/vulns/export/89ac18d9-d6bc-4cef-9615-2d138f1ff6d2/status')
+    print(status)
+
+    #set a variable to True for our While loop
+    not_ready = True
+
+    #loop to check status until finished
+    while not_ready is True:
+        #Pull the status, then pause 5 seconds and ask again.
+        if status['status'] == 'PROCESSING':
+            time.sleep(5)
+            status = get_data('/vulns/export/' + ex_uuid + '/status')
+            print(status)
+
+        #Exit Loop once confirmed finished
+        if status['status'] == 'FINISHED':
+            not_ready = False
+
+        #Tell the user an error occured
+        if status['status'] == 'ERROR':
+            print("Error occurred")
+
+    #create an empty list to put all of our data into.
+    data = []
+
+    #loop through all of the chunks
+    for x in range(len(status['chunks_available'])):
+        chunk_data = get_data('/vulns/export/' + ex_uuid + '/chunks/' + str(x+1))
+        data.append(chunk_data)
+
+        with open('tio_vuln_data.txt', 'w') as json_outfile:
+            json.dump(chunk_data, json_outfile)
+
+            json_outfile.close()
+
+
+def asset_export():
+    # Set the payload to the maximum number of assets to be pulled at once
+    pay_load = {"chunk_size": 5000}
+
+    # request an export of the data
+    export = post_data("/assets/export", pay_load)
+
+    # grab the export UUID
+    ex_uuid = export['export_uuid']
+    print('Requesting Export with ID : ' + ex_uuid)
+
+    # now check the status
+    status = get_data('/assets/export/' + ex_uuid + '/status')
+
+    # status = get_data('/vulns/export/89ac18d9-d6bc-4cef-9615-2d138f1ff6d2/status')
+    print(status)
+
+    # set a variable to True for our While loop
+    not_ready = True
+
+    # loop to check status until finished
+    while not_ready is True:
+        # Pull the status, then pause 5 seconds and ask again.
+        if status['status'] == 'PROCESSING':
+            time.sleep(5)
+            status = get_data('/assets/export/' + ex_uuid + '/status')
+            print(status)
+
+        # Exit Loop once confirmed finished
+        if status['status'] == 'FINISHED':
+            not_ready = False
+
+        # Tell the user an error occured
+        if status['status'] == 'ERROR':
+            print("Error occurred")
+
+    # create an empty list to put all of our data into.
+    data = []
+
+    # loop through all of the chunks
+    for x in range(len(status['chunks_available'])):
+        chunk_data = get_data('/assets/export/' + ex_uuid + '/chunks/' + str(x+1))
+        data.append(chunk_data)
+
+        with open('tio_asset_data.txt', 'w') as json_outfile:
+            json.dump(chunk_data, json_outfile)
+
+            json_outfile.close()
+
+
+def plugin_by_ip(cmd,plugin):
+    try:
+        with open('tio_vuln_data.txt') as json_file:
+            data = json.load(json_file)
+
+            for x in range(len(data)):
+                if data[x]['asset']['ipv4'] == cmd:
+                    if str(data[x]['plugin']['id']) == plugin:
+
+                        print(data[x]['output'])
+                    else:
+                        pass
+    except:
+        print("Local Cache is corrupt; pulling new data")
+        print("This will take a minute or two")
+        vuln_export()
+        asset_export()
+
 
 def find_by_plugin(plugin):
-    data = get_data('/workbenches/assets/')
-    print("Searching for the plugin_out put for plugin: " + plugin + " on all assets...")
-    for x in range(len(data["assets"])):
-        try:
-            ip = data["assets"][x]["ipv4"][0]
-            uid = data["assets"][x]["id"]
-            # create a new thread for each asset
-            # Need to come back and put limitations on this
-            t = threading.Thread(target=thread_fetch, args=(ip, uid, plugin))
-            t.start()
-        except:
-            pass
+    try:
+        with open('tio_vuln_data.txt') as json_file:
+            data = json.load(json_file)
+
+            for x in range(len(data)):
+                if str(data[x]['plugin']['id']) == plugin:
+                    print("\nIP : ", data[x]['asset']['ipv4'])
+                    print("UUID ", data[x]['asset']['uuid'])
+                    print("---Plugin--", plugin, "--Output---")
+                    print(data[x]['output'])
+                    print("---Output--", plugin, "--End---")
+                else:
+                    pass
+    except:
+        print("Local Cache is corrupt; pulling new data")
+        print("This will take a minute or two")
+        vuln_export()
+        asset_export()
+
 
 def print_data(data):
     try:
@@ -130,20 +284,6 @@ def print_data(data):
     except:
         pass
 
-def thread_fetch(ip,uid,plugin_id):
-    #i'm new to threading, so I broke this code out from the findplugin function to take advantage of threading
-    #I intend to fix this with a more proper solution as I learn.
-    try:
-        info = get_data('/workbenches/assets/' + str(uid) + '/vulnerabilities/' + str(plugin_id) + '/outputs')
-        #Need a better way of causing a failure so we don't print every IP.
-        #raising the eval equality will raise a Index Error if there is no data associated
-        eval = info["outputs"][0]["plugin_output"]
-
-        #print the IP address and send the rest to the print function to be printed
-        print(ip)
-        print_data(info)
-    except:
-        pass
 
 def nessus_scanners():
     try:
@@ -154,9 +294,10 @@ def nessus_scanners():
     except:
         print("You may not have access...Check permissions...or Keys")
 
-@cli.command()
+
+@cli.command(help="Find IP specific Details")
 @click.argument('ipaddr')
-@click.option('--plugin', default='', help='Plugin ID')
+@click.option('--plugin', default='', help='Find Details on a particular plugin ID')
 @click.option('-n', is_flag=True, help='Netstat Established and Listening and Open Ports')
 @click.option('-p', is_flag=True, help='Patch Information')
 @click.option('-t', is_flag=True, help='Trace Route')
@@ -236,171 +377,158 @@ def ip(ipaddr, plugin, n, p, t, o, c, s, r, b, d, software, outbound, exploit, c
                 print("No Software found")
 
     if outbound:
-        asset = get_data('/workbenches/assets/vulnerabilities')
+        with open('tio_vuln_data.txt') as json_file:
+            data = json.load(json_file)
+            print("IP Address", " - ", "Port", " - ", "Service")
+            print("-------------------------------")
+            for x in range(len(data)):
+                if data[x]['asset']['ipv4'] == ip:
 
-        for x in range(len(asset['assets'])):
-            # Grab the ID and IP address to pull data related to the current asset
-            ip = (asset['assets'][x]['ipv4'])
-            id = (asset['assets'][x]['id'])
-
-            if ipaddr in ip:
-                data = get_data('/workbenches/assets/' + id + '/vulnerabilities/16/outputs')
-                print("\nOutbound External Connection Found by Nessus Network Monitor")
-                print("----------------")
-                for x in range(len(data["outputs"])):
-                    print(data["outputs"][x]["plugin_output"])
-                    print("-----")
-                    for y in range(len(data["outputs"][x]["states"])):
-                        # print(data["outputs"][x]["states"][y]["results"])
-                        for z in range(len(data["outputs"][x]["states"][y]["results"])):
-                            application = data["outputs"][x]["states"][y]["results"][z]["application_protocol"]
-                            print(
-                                "Port : " + str(data["outputs"][x]["states"][y]["results"][z]["port"]) + '/' + str(application))
+                    if data[x]['plugin']['id'] == plugin:
+                        print(data[x]['output'], "   -  ", data[x]['port']['port'], "  - ", data[x]['port']['service'])
+                    else:
+                        pass
         print()
 
     if exploit:
-        N = get_data(
-            '/workbenches/assets/vulnerabilities?filter.0.quality=eq&filter.0.filter=plugin.attributes.exploit_available&filter.0.value=True')
-        for assets in range(len(N['assets'])):
-            asset_id = N['assets'][assets]['id']
 
-            for ips in N['assets'][assets]['ipv4']:
-                ip_addy = N['assets'][assets]['ipv4'][0]
-                if ip_addy == ipaddr:
-                    print("Exploitable Details for : " + ip_addy)
-                    print()
-                    V = get_data(
-                        '/workbenches/assets/' + asset_id + '/vulnerabilities?filter.0.quality=eq&filter.0.filter=plugin.attributes.exploit_available&filter.0.value=True')
-                    for plugins in range(len(V['vulnerabilities'])):
-                        plugin = V['vulnerabilities'][plugins]['plugin_id']
-                        # pprint.pprint(plugin)
+        try:
 
-                        P = get_data('/plugins/plugin/' + str(plugin))
-                        # pprint.pprint(P['attributes'])
-                        print("\n----Exploit Info----")
-                        print(P['name'])
+            N = get_data('/workbenches/assets/vulnerabilities?filter.0.quality=eq&filter.0.filter=ipv4&filter.0.value=' + ipaddr)
+
+            asset_id = N['assets'][0]['id']
+
+
+            print("Exploitable Details for : " + ipaddr)
+            print()
+            V = get_data(
+                            '/workbenches/assets/' + asset_id + '/vulnerabilities?filter.0.quality=eq&filter.0.filter=plugin.attributes.exploit_available&filter.0.value=True')
+            for plugins in range(len(V['vulnerabilities'])):
+                plugin = V['vulnerabilities'][plugins]['plugin_id']
+                # pprint.pprint(plugin)
+
+                P = get_data('/plugins/plugin/' + str(plugin))
+                # pprint.pprint(P['attributes'])
+                print("\n----Exploit Info----")
+                print(P['name'])
+                print()
+                for attribute in range(len(P['attributes'])):
+
+                    if P['attributes'][attribute]['attribute_name'] == 'cve':
+                        cve = P['attributes'][attribute]['attribute_value']
+                        print("CVE ID : " + cve)
+
+                    if P['attributes'][attribute]['attribute_name'] == 'description':
+                        description = P['attributes'][attribute]['attribute_value']
+                        print("Description")
+                        print("------------\n")
+                        print(description)
                         print()
-                        for attribute in range(len(P['attributes'])):
 
-                            if P['attributes'][attribute]['attribute_name'] == 'cve':
-                                cve = P['attributes'][attribute]['attribute_value']
-                                print("CVE ID : " + cve)
-
-                            if P['attributes'][attribute]['attribute_name'] == 'description':
-                                description = P['attributes'][attribute]['attribute_value']
-                                print("Description")
-                                print("------------\n")
-                                print(description)
-                                print()
-
-                            if P['attributes'][attribute]['attribute_name'] == 'solution':
-                                solution = P['attributes'][attribute]['attribute_value']
-                                print("\nSolution")
-                                print("------------\n")
-                                print(solution)
-                                print()
+                    if P['attributes'][attribute]['attribute_name'] == 'solution':
+                        solution = P['attributes'][attribute]['attribute_value']
+                        print("\nSolution")
+                        print("------------\n")
+                        print(solution)
+                        print()
+        except:
+            print("No Exploit Details found for: ",ipaddr)
 
     if critical:
-        N = get_data("/workbenches/assets/vulnerabilities")
+        try:
+            N = get_data('/workbenches/assets/vulnerabilities?filter.0.quality=eq&filter.0.filter=ipv4&filter.0.value=' + ipaddr)
 
-        for asset in range(len(N["assets"])):
+            asset_id = N['assets'][0]['id']
 
-            for ips in range(len(N["assets"][asset]["ipv4"])):
-                ip = N["assets"][asset]["ipv4"][ips]
+            print("Critical Vulns for Ip Address :" + ipaddr)
+            print()
+            vulns = get_data("/workbenches/assets/" + asset_id + "/vulnerabilities?date_range=90")
+            for severities in range(len(vulns["vulnerabilities"])):
+                vuln_name = vulns["vulnerabilities"][severities]["plugin_name"]
+                id = vulns["vulnerabilities"][severities]["plugin_id"]
+                severity = vulns["vulnerabilities"][severities]["severity"]
+                state = vulns["vulnerabilities"][severities]["vulnerability_state"]
 
-                if ipaddr == ip:
-
-                    print("Critical Vulns for Ip Address :" + ipaddr)
+                # only pull the critical vulns; critical = severity 4
+                if severity >= 4:
+                    print("Plugin Name : " + vuln_name)
+                    print("ID : " + str(id))
+                    print("Severity : " + str(severity))
+                    print("State : " + state)
+                    print("----------------\n")
+                    plugin_by_ip(str(ipaddr), str(id))
                     print()
-                    id = N["assets"][asset]["id"]
-                    vulns = get_data("/workbenches/assets/" + id + "/vulnerabilities?date_range=90")
-                    for severities in range(len(vulns["vulnerabilities"])):
-                        vuln_name = vulns["vulnerabilities"][severities]["plugin_name"]
-                        id = vulns["vulnerabilities"][severities]["plugin_id"]
-                        severity = vulns["vulnerabilities"][severities]["severity"]
-                        state = vulns["vulnerabilities"][severities]["vulnerability_state"]
-
-                        # only pull the critical vulns; critical = severity 4
-                        if severity >= 4:
-                            print("Plugin Name : " + vuln_name)
-                            print("ID : " + str(id))
-                            print("Severity : " + str(severity))
-                            print("State : " + state)
-                            print("----------------\n")
-                            plugin_by_ip(str(ipaddr), str(id))
-
-
-
-                else:
-                    pass
+        except:
+            print("No Critical Vulnerabilities wer found for : ", ipaddr)
 
     if details:
-        asset = get_data('/workbenches/assets/vulnerabilities')
+        with open('tio_asset_data.txt') as json_file:
+            data = json.load(json_file)
+            # pprint.pprint(data[50])
 
-        for x in range(len(asset['assets'])):
-            # Grab the ID and IP address to pull data related to the current asset
-            ip = (asset['assets'][x]['ipv4'])
-            id = (asset['assets'][x]['id'])
-
-            if ipaddr in ip:
-                print("IP Addresses:")
-                print("--------------")
-                # there maybe multiple IP addresses, loop through if that is the case.
-                for z in range(len(ip)):
-                    print(ip[z])
-
-                print("\nTenable UUID")
-                print("--------------")
-                print(id + '\n')
-                info = get_data('/workbenches/assets/' + id + '/info')
-                # pprint.pprint(info)
-                print("\nCurrent Severity Counts")
-                print("--------------")
-                for s in range(len(info['info']['counts']['vulnerabilities']['severities'])):
-                    severity = info['info']['counts']['vulnerabilities']['severities'][s]['name']
-                    count = info['info']['counts']['vulnerabilities']['severities'][s]['count']
-
-                    print(severity + " " + str(count))
-
-                print("\nFQDN")
-                print("--------------")
-                # FQDN may be blank, so inform the user if that is the case;
+            for x in range(len(data)):
                 try:
-                    print(info['info']['fqdn'][0] + '\n')
+
+                    ip = data[x]['ipv4s'][0]
+                    id = data[x]['id']
+                    if ip == ipaddr:
+                        print("\nTenable UUID")
+                        print("--------------")
+                        print(data[x]['id'])
+
+                        print("\nIdentities")
+                        print("--------------")
+                        try:
+                            for n in range(len(data[x]['netbios_names'])):
+                                print("Netbios - ", data[x]['netbios_names'][n])
+                        except:
+                            pass
+                        try:
+                            for n in range(len(data[x]['fqdns'])):
+                                print("FQDN - ", data[x]['fqdns'][n])
+                        except:
+                            pass
+
+                        try:
+                            for h in range(len(data[x]['hostnames'])):
+                                print("Host Name -", data[x]['hostnames'][h])
+                        except:
+                            pass
+
+                        print("\nOperating Systems")
+                        print("--------------")
+                        try:
+                            for o in range(len(data[x]['operating_systems'])):
+                                print(data[x]['operating_systems'][o])
+                        except:
+                            pass
+
+                        try:
+                            print("\nIP Addresses:")
+                            print("--------------")
+                            for i in range(len(data[x]['ipv4s'])):
+                                print(data[x]['ipv4s'][i])
+                        except:
+                            pass
+
+                        try:
+                            print("\nMac Addresses:")
+                            print("--------------")
+                            for m in range(len(data[x]['mac_addresses'])):
+                                print(data[x]['mac_addresses'][m])
+                        except:
+                            pass
+
+                        print("\nLast Scan Time - ", data[x]['last_authenticated_scan_date'])
+
                 except:
-                    print("NO FQDN Found\n")
+                    pass
 
-                print("Mac Address(s)")
-                print("--------------")
-                # there may be multiple Mac addressses assoicated, loop through each one
-                for y in range(len(info['info']['mac_address'])):
-                    # there may not be any Mac addresses assigned, so inform the user if that is the case.
-                    try:
-                        print(info['info']['mac_address'][y])
-                    except:
-                        print("No Mac Address found")
 
-                print("\nOperating System")
-                print("--------------")
-                print(info['info']['operating_system'][0])
-                print('\n')
 
-                print("Linux Memory Information")
-                data2 = get_data('/workbenches/assets/' + id + '/vulnerabilities/45433/outputs')
-                print("----------------")
-                print_data(data2)
 
-                print("Processor Information")
-                data3 = get_data('/workbenches/assets/' + id + '/vulnerabilities/45432/outputs')
-                print("----------------")
-                print_data(data3)
-                data4 = get_data('/workbenches/assets/' + id + '/vulnerabilities/48942/outputs')
-                print_data(data4)
-
-                print("Last Scan Date " + str(info['info']['last_authenticated_scan_date']))
-
-@cli.command()
-@click.option('--plugin', default='', help='Plugin ID')
+@cli.command(help="Find Containers, Web Apps, Credential failures")
+@click.option('--plugin', default='', help='Find Assets where this plugin fired')
 @click.option('-docker', is_flag=True, help="Find Running Docker Containers")
 @click.option('-webapp', is_flag=True, help="Find Web Servers running")
 @click.option('-creds', is_flag=True, help="Find Credential failures")
@@ -425,7 +553,8 @@ def find(plugin, docker, webapp, creds):
         print("I'm looking for credential issues...Please hang tight")
         find_by_plugin(str(104410))
 
-@cli.command()
+
+@cli.command(help="Get the Latest Scan information")
 @click.option('-latest', is_flag=True, help="Report the Last Scan Details")
 def report(latest):
     #get the latest Scan Details
@@ -482,7 +611,8 @@ def report(latest):
             print("         " + details["notes"][x]["title"])
             print("         " + details["notes"][x]["message"] + "\n")
 
-@cli.command()
+
+@cli.command(help="Test the API ex: /scans ")
 @click.argument('url')
 def api(url):
     try:
@@ -491,7 +621,8 @@ def api(url):
     except:
         click.echo("The API endpoint you tried threw an error")
 
-@cli.command()
+
+@cli.command(help="Get a List of Scanners, Users, Scans, Assets found in the last 30 days, IP exclusions.  Retreive All containers and Vulnerability Score")
 @click.option('-scanners', is_flag=True, help="List all of the Scanners")
 @click.option('-users', is_flag=True, help="List all of the Groups")
 @click.option('-exclusions', is_flag=True, help="List all Exclusions")
@@ -501,10 +632,9 @@ def api(url):
 @click.option('-scans', is_flag=True, help="List all Scans")
 @click.option('-nnm', is_flag=True, help="Nessus Network Monitor assets and their vulnerability scores")
 @click.option('-assets', is_flag=True, help="Assets found in the last 30 days")
-def list(scanners, users, exclusions, containers, logs, running, scans, nnm, assets):
-    #need to do
-    #groups
-    #target-groups
+@click.option('-policies', is_flag=True, help="Scan Policies")
+def list(scanners, users, exclusions, containers, logs, running, scans, nnm, assets, policies):
+
     if scanners:
         nessus_scanners()
 
@@ -628,7 +758,16 @@ def list(scanners, users, exclusions, containers, logs, running, scans, nnm, ass
             print(l[z])
         print()
 
-@cli.command()
+    if policies:
+        data = get_data('/policies')
+        for x in range(len(data['policies'])):
+            print(data['policies'][x]['name'])
+            print(data['policies'][x]['description'])
+            print('Template ID : ', data['policies'][x]['template_uuid'])
+            print()
+
+
+@cli.command(help="Quickly Scan a Target")
 @click.argument('targets')
 def scan(targets):
     print("\nChoose your Scan Template")
@@ -639,6 +778,8 @@ def scan(targets):
         template = "731a8e52-3ea6-a291-ec0a-d2ff0619c19d7bd788d6be818b65"
     elif option == '2':
         template = "bbd4f805-3966-d464-b2d1-0079eb89d69708c3a05ec2812bcf"
+    elif len(option) == 52:
+        template = str(option)
     else:
         print("Using Basic scan since you can't follow directions")
         template = "731a8e52-3ea6-a291-ec0a-d2ff0619c19d7bd788d6be818b65"
@@ -671,11 +812,12 @@ def scan(targets):
     print("A scan started with UUID: " + data2["scan_uuid"])
     print("The scan ID is " + str(scan))
 
-@cli.command()
+
+@cli.command(help="Pause a running Scan")
 @click.argument('Scan_id')
 def pause(scan_id):
     try:
-        data = post_data('/scans/' + str(scan_id) + '/pause')
+        data = quick_post('/scans/' + str(scan_id) + '/pause')
         if data.status_code == 200:
             print(" Your Scan was Paused")
         elif data.status_code == 409:
@@ -691,11 +833,12 @@ def pause(scan_id):
         print("Ahh now you've done it...")
         print("double check your id")
 
-@cli.command()
+
+@cli.command(help="Resume a paused Scan")
 @click.argument('scan_id')
 def resume(scan_id):
     try:
-        data = post_data('/scans/' + str(scan_id) + '/resume')
+        data = quick_post('/scans/' + str(scan_id) + '/resume')
         if data.status_code == 200:
             print(" Your Scan Resumed")
         elif data.status_code == 409:
@@ -710,11 +853,12 @@ def resume(scan_id):
         print("Ahh now you've done it...")
         print("double check your id")
 
-@cli.command()
+
+@cli.command(help="Stop a Running Scan")
 @click.argument('scan_id')
 def stop(scan_id):
     try:
-        data = post_data('/scans/' + str(scan_id) + '/stop')
+        data = quick_post('/scans/' + str(scan_id) + '/stop')
         if data.status_code == 200:
             print(" Your Scan was Stopped")
         elif data.status_code == 409:
@@ -729,11 +873,12 @@ def stop(scan_id):
         print("Ahh now you've done it...")
         print("double check your id")
 
-@cli.command()
+
+@cli.command(help="Start a valid Scan")
 @click.argument('scan_id')
 def start(scan_id):
     try:
-        data = post_data('/scans/' + str(scan_id) + '/launch')
+        data = quick_post('/scans/' + str(scan_id) + '/launch')
         if data.status_code == 200:
             print(" Your Scan was Started")
         elif data.status_code == 409:
@@ -747,6 +892,7 @@ def start(scan_id):
     except:
         print("Ahh now you've done it...")
         print("double check your id")
+
 
 if __name__ == '__main__':
     cli()
