@@ -876,7 +876,7 @@ def list(scanners, users, exclusions, containers, logs, running, scans, nnm, ass
             data = get_data('/container-security/api/v1/container/list')
             print("Container Name : ID : # of Vulns\n")
             for x in range(len(data)):
-                print(data[x])
+                #print(data[x])
 
                 print(str(data[x]["name"]) + " : " + str(data[x]["id"]) + " : " + str(
                     data[x]["number_of_vulnerabilities"]))
