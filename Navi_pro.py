@@ -108,27 +108,6 @@ def post_data(url_mod,payload):
     return data
 
 
-def compare():
-    #need to add platform specific checks
-    try:
-        stat = os.stat('tio_vuln_data.txt')
-        current = time.time()
-        time_delta = current - stat[9]
-        if time_delta < 10086400:
-            pass
-            #print("Data is fresh, using local Cache")
-        else:
-            print("It's been : ", time_delta, " seconds since the last pull")
-            print('pulling new data')
-            vuln_export()
-            asset_export()
-    except:
-        print("Data is Stale or not present.  Pulling new Vuln and Asset data to local cache")
-        vuln_export()
-        asset_export()
-    return
-
-
 def vuln_export():
     # Set the payload to the maximum number of assets to be pulled at once
     thirty_days = time.time() - 2660000
@@ -1109,6 +1088,11 @@ def start(scan_id):
     except:
         print("Ahh now you've done it...")
         print("double check your id")
+
+@cli.command(help="Update local repository")
+def update():
+    vuln_export()
+    asset_export()
 
 
 if __name__ == '__main__':
