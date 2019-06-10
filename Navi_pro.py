@@ -7,6 +7,7 @@ import os
 import pickle
 import sys
 import json
+import csv
 
 requests.packages.urllib3.disable_warnings()
 
@@ -275,6 +276,24 @@ def nessus_scanners():
             print(str(data["scanners"][x]["name"]) + " : " + str(data["scanners"][x]["id"]))
     except:
         print("You may not have access...Check permissions...or Keys")
+
+
+def webscan(targets, scanner_id, template):
+
+    #create the scan payload based on the answers we received
+    payload = dict(uuid=template, settings={"name": "Scripted Web App Scan of: " + str(targets),
+                                            "enabled": "true",
+                                            "scanner_id": scanner_id,
+                                            "text_targets": targets})
+    #setup the scan
+    scan_data = post_data('/scans', payload)
+
+    # pull scan ID after Creation
+    scan_id = scan_data["scan"]["id"]
+
+    #let the user no the scan ID so they can pause or stop the scan
+    print(targets, " : ", scan_id)
+    return
 
 
 def create_target_group(tg_name, tg_list):
@@ -557,7 +576,7 @@ def ip(ipaddr, plugin, n, p, t, o, c, s, r, patches, d, software, outbound, expl
 @click.argument('plugin')
 @click.option('-pid', is_flag=True, help='Create Target Group based a plugin ID')
 @click.option('-pname', is_flag=True, help='Create Target Group by Text found in the Plugin Name')
-@click.option('-pout', default='', help='Create a Target Group by Text found in the Plugin Output')
+@click.option('-pout', default='', help='Create a Target Group by Text found in the Plugin Output: Must supply Plugin ID')
 def group(plugin, pid, pname, pout):
     target_list = []
     if pid:
@@ -1007,6 +1026,50 @@ def scan(targets):
     # print Scan UUID
     print("A scan started with UUID: " + data2["scan_uuid"])
     print("The scan ID is " + str(scan))
+
+@cli.command(help="Create a Web App scan from a CSV file")
+@click.argument('csv_input')
+def spider(csv_input):
+
+    # request the User to choose a Scan Template
+    print("\nChoose your Scan Template")
+    print("1.  Web App Overview")
+    print("2   Web App Scan")
+
+    # capture the choice
+    option = input("Please enter option #.... ")
+
+    # set the Template ID based on their choice
+    if option == '1':
+        # Web App Overview template ID
+        template = "58323412-d521-9482-2224-bdf5e2d65e6a4c67d33d4322677f"
+
+    elif option == '2':
+        # Web App Scan template ID
+        template = "09805055-a034-4088-8986-aac5e1c57d5f0d44f09d736969bf"
+
+    # Template ID is 52 chars long; let the user put in their own policy ID
+    elif len(option) == 52:
+        template = str(option)
+
+    # if anything else is entered outside of these options, make it a Web App policy
+    else:
+        print("Using Web App scan since you can't follow directions")
+        template = "09805055-a034-4088-8986-aac5e1c57d5f0d44f09d736969bf"
+
+    # Grab the scanners so the user can choose which scanner to use
+    print("Here are the available scanners")
+    print("Remember, Pick A Web App scanner! NOT a Nessus Scanner. ")
+    nessus_scanners()
+
+    # capture the users choice - putting in the wrong scanner will cause and error that we haven't programed to catch
+    scanner_id = input("What scanner do you want to scan with ?.... ")
+
+    with open(csv_input, 'r', newline='') as csv_file:
+        web_apps = csv.reader(csv_file)
+
+        for app in web_apps:
+            webscan(app[0], scanner_id, template)
 
 
 @cli.command(help="Pause a running Scan")
